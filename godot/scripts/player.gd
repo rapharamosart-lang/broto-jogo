@@ -55,6 +55,9 @@ var climb_dur := 0.35
 var climb_anim := "mantle"
 # input (can be overridden by the test bot: `bot` dictionary)
 var bot = null
+var dj_used := false
+var recoil_t := 0.0
+var combat: Node3D
 var _prev := {}
 
 @onready var puppet: Node3D = $Puppet
@@ -77,17 +80,19 @@ func init() -> void:  # called by main.gd after the level is built
 	floor_max_angle = deg_to_rad(cfg.maxSlopeDeg); floor_snap_length = cfg.snap
 	axis_lock_linear_z = true
 	_setup_model()
+	combat = preload("res://scripts/combat.gd").new(); combat.name = "Combat"; add_child(combat); combat.setup(self, level.L.combat)
 
 # ---------------------------------------------------------------- model + AnimationTree
 func _setup_model() -> void:
 	var ps: PackedScene = load("res://assets/char/broto.glb")
 	model = ps.instantiate(); puppet.add_child(model)
-	var wood: ShaderMaterial = level.wc(Color("#f0e2cc"), {"wash": .18, "grain": .16})
+	var wood: ShaderMaterial = level.wc(Color("#e2b47e"), {"wash": .12, "grain": .1, "wood": .9, "wood_scale": 1.0})
 	for mi in model.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).material_override = wood
 	# normalise height to PH
 	var aabb := _aabb(model, Transform3D.IDENTITY)
 	var k: float = PH / max(aabb.size.y, 0.01)
 	model.scale = Vector3.ONE * k; model.position.y = -aabb.position.y * k
+	wood.set_shader_parameter("wood_scale", k)
 	var ap: AnimationPlayer = model.find_child("AnimationPlayer", true, false)
 	if ap == null: push_warning("broto.glb has no AnimationPlayer"); return
 	for n in ap.get_animation_list():
@@ -135,7 +140,7 @@ func I(a: String) -> bool:
 func P(a: String) -> bool:   # just pressed
 	var now := I(a); var was: bool = _prev.get(a, false); return now and not was
 func _latch() -> void:
-	for a in ["left", "right", "up", "down", "jump", "dash", "grab", "run"]: _prev[a] = I(a)
+	for a in ["left", "right", "up", "down", "jump", "dash", "grab", "run", "attack", "focus"]: _prev[a] = I(a)
 
 # ---------------------------------------------------------------- main loop
 func _physics_process(dt: float) -> void:
@@ -144,7 +149,8 @@ func _physics_process(dt: float) -> void:
 	if dir != 0 and state != S.ROPE and state != S.CLIMB: face = dir
 	if P("jump"): jbuf = JUMP_BUF
 	jbuf = max(0.0, jbuf - dt); dash_cd = max(0.0, dash_cd - dt); rope_cd = max(0.0, rope_cd - dt)
-	land_t = max(0.0, land_t - dt); jump_anim_t = max(0.0, jump_anim_t - dt)
+	land_t = max(0.0, land_t - dt); jump_anim_t = max(0.0, jump_anim_t - dt); recoil_t = max(0.0, recoil_t - dt)
+	combat.step(dt)
 
 	match state:
 		S.CLIMB: _climb(dt)
@@ -161,21 +167,24 @@ func _physics_process(dt: float) -> void:
 func _move(dt: float, dir: int) -> void:
 	var was_floor := is_on_floor()
 	var spd := RUN if I("run") else WALK
-	var acc := ACC_G if was_floor else ACC_A
-	velocity.x = move_toward(velocity.x, dir * spd, acc * dt)
+	var acc := ACC_G if was_floor else ACC_A * Prog.air_m()
+	if recoil_t <= 0: velocity.x = move_toward(velocity.x, dir * spd, acc * dt)
 	# gravity (heavier when falling, variable jump cut)
 	var g := GRAV * (FALL_GRAV_MUL if velocity.y < 0 else 1.0)
-	velocity.y = max(velocity.y - g * dt, -FALL_MAX)
+	var fmax := 4.0 if (Prog.rank("leve") > 0 and I("jump") and velocity.y < 0) else FALL_MAX
+	velocity.y = max(velocity.y - g * dt, -fmax)
 	if jheld and not I("jump") and velocity.y > 0: velocity.y *= JUMP_CUT; jheld = false
-	if was_floor: coyote = COYOTE; air_dash = 0
+	if was_floor: coyote = COYOTE; air_dash = 0; dj_used = false
 	else: coyote = max(0.0, coyote - dt)
 	# jump (buffer + coyote)
 	if jbuf > 0 and coyote > 0:
 		velocity.y = JUMP_V; jbuf = 0; coyote = 0; jheld = true; jump_anim_t = .18; state = S.AIR
+	elif jbuf > 0 and not was_floor and not dj_used and Prog.rank("pena") > 0:   # double jump (tree: pena)
+		velocity.y = JUMP_V * .9; jbuf = 0; dj_used = true; jheld = true; jump_anim_t = .18; sq_v += 1.5
 	# dash
-	if P("dash") and dash_cd <= 0 and (was_floor or air_dash == 0):
-		if not was_floor: air_dash = 1
-		state = S.DASH; dash_t = DASH_T; dash_cd = DASH_CD; velocity = Vector3(face * DASH_V, 0, 0); return
+	if P("dash") and dash_cd <= 0 and (was_floor or air_dash < 1 + Prog.rank("sopro")):
+		if not was_floor: air_dash += 1
+		state = S.DASH; dash_t = DASH_T; dash_cd = DASH_CD * Prog.dash_m(); velocity = Vector3(face * DASH_V, 0, 0); return
 	var vy_before := velocity.y
 	move_and_slide()
 	_push_bodies()
@@ -303,6 +312,7 @@ func _rope(dt: float, dir: int) -> void:
 		var tv: float = r.ang_vel * rope_d
 		velocity = Vector3(tv * cos(r.angle) + face * 2.5, 7.2 + max(0.0, tv * sin(r.angle) * face), 0)
 		r.held = false; rope = null; rope_cd = .35; state = S.AIR; jheld = true; air_dash = 0
+		if Prog.rank("corda") > 0: dj_used = false
 
 # ---------------------------------------------------------------- wooden-puppet secondary motion
 func _secondary(dt: float) -> void:
