@@ -522,7 +522,7 @@ function step(dt,inp){
  const dir=(inp.Rr?1:0)-(inp.L?1:0);
  P.ropeCD=Math.max(0,(P.ropeCD||0)-dt);if(P.rope){RP.step(dt,inp,dir);world.step();return}
  if(P.climb||P.hang){climbStep(dt,inp,dir);world.step();return}
- V9.phys(dt);if(V9.swim(dt,inp,dir))return;if(RP.tryGrab(inp)){world.step();return}
+ V9.phys(dt);if(V9.swim(dt,P.swim?Object.assign({},inp,{J:inp.J||inp.up}):inp,dir))return;if(RP.tryGrab(inp)){world.step();return}
  // ground climb: low obstacles step up automatically, higher ones mantle after pressing into them briefly; crates: low or holding up/jump = climb, otherwise push
  if(P.on&&dir&&P.jumpT<0&&P.landT<=0&&!(P.atkT>0)){P.blockT=(P.blockT||0);const c=probe(dir,CLM.mantleMax);
   if(c){let crateHit=null;for(const o of dyn){const t=bodyPos(o);if(Math.abs(t.x-c.edge-dir*o.w/2)<.2&&Math.abs(t.y+o.h/2-c.top)<.15)crateHit=o}
@@ -630,7 +630,7 @@ var WCM=(()=>{const N=LOWQ?256:512,cv=document.createElement('canvas');cv.width=
 var HK=(()=>{const so=document.getElementById('soul'),sf=so&&so.querySelector('i');let soul=0;const st={la:2,get soul(){return soul},set soul(v){soul=Math.max(0,Math.min(99,v))},log:[]};
  const sM=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});const sG=new THREE.RingGeometry(.75,1.15,20,1,-1.1,2.2);const sl=new THREE.Mesh(sG,sM);sl.userData.noAO=1;sl.userData.noWC=1;S.add(sl);let slT=0,slD='s';
  st.slash=d=>{slT=.12;slD=d;st.log.push('slash:'+d)};
- st.onHit=(d,n)=>{soul=Math.min(99,soul+(11+(window.__soulA||0))*(window.__soulM||1));st.log.push('hit:'+d);if(d=='d'){if(st.has('eco'))soul=Math.min(99,soul+8);P.vy=JUMPV*.92*(window.__pogoM||1);P.on=false;P.jHeld=0;P.pogo=1;P.dj=0;P.airDash=0;P.dashCD=0;P.jumpT=-1;st.pogos=(st.pogos||0)+1;st.log.push('pogo')}else if(d=='s'){P.vx=-P.face*(P.on?4:3);P.recT=.1}};
+ st.onHit=(d,n)=>{soul=Math.min(99,soul+(11+(window.__soulA||0))*(window.__soulM||1));st.log.push('hit:'+d);if(d=='d'&&!P.swim){if(st.has('eco'))soul=Math.min(99,soul+8);P.vy=JUMPV*.92*(window.__pogoM||1);P.on=false;P.jHeld=0;P.pogo=1;P.dj=0;P.airDash=0;P.dashCD=0;P.jumpT=-1;st.pogos=(st.pogos||0)+1;st.log.push('pogo')}else if(d=='s'){P.vx=-P.face*(P.on?4:3);P.recT=.1}};
  st.focus=(dt,inp,H,CB,drawHP,burst)=>{const ok=inp.H&&P.on&&!P.dead&&!P.rope&&!P.swim&&soul>=33&&H.hp<CB.health&&!(P.atkT>0);if(ok){P.focT=(P.focT||0)+dt;if(Math.random()<dt*20)burst(P.x+(Math.random()-.5)*.8,P.y+.4+Math.random(),1,.25,0,new THREE.Color(0xf4f8ff));if(P.focT>=(window.__focT||.9)){H.hp++;soul-=33;drawHP();P.focT=0;st.heals=(st.heals||0)+1;burst(P.x,P.y+.9,30,1,0,new THREE.Color(0xffffff));try{AU.tone(AU.ctx.currentTime,.4,'sine',660,990,.08)}catch(e){}}}else P.focT=0;
   if(!st.h1&&window.__GP&&__GP.held){st.h1=1;setTimeout(()=>window.__say&&__say(matchMedia('(pointer:coarse)').matches?'hk_m':'hk'),1500)}if(!st.h2&&soul>=33){st.h2=1;window.__say&&__say('focus')}
   if(window.__ropeR&&P.rope){P.dj=0;P.airDash=0}
@@ -646,7 +646,7 @@ var HK=(()=>{const so=document.getElementById('soul'),sf=so&&so.querySelector('i
  let pwPrev=0,hPrev=0,hT=0,lastH=0;
  st.cast=(dir,H)=>{const fx=window.__GP&&__GP.FX;if(soul<33)return 0;let k=dir=='u'?'enxame':dir=='d'?(P.on?'raizes':'impacto'):'lanca';if(!st.has(k)){if(k!='lanca'&&st.has('lanca'))k='lanca';else return 0}soul-=33;st.log.push('cast:'+k);st.casts=(st.casts||0)+1;
   if(k=='lanca'){const m=orb(0xfff2c0,1.2);m.scale.set(3,.7,.7);FXs.push({k,m,x:P.x+P.face*.6,y:P.y+.9,vx:P.face*18,t:.7,tick:0});P.vx=-P.face*2;P.recT=.1}
-  else if(k=='impacto'){P.dive=1;P.vy=-28;P.vx=0;H.inv=Math.max(H.inv,.6)}
+  else if(k=='impacto'){P.slam=1;P.vy=-28;P.vx=0;H.inv=Math.max(H.inv,.6)}
   else if(k=='raizes'){for(let i=1;i<=3;i++)FXs.push({k,x:P.x+P.face*1.3*i,y:P.y+.4,t:.15*i,d:.15*i,done:0})}
   else if(k=='enxame'){const ms=[];for(let i=0;i<6;i++)ms.push(orb(0xc8ffb0,.6));FXs.push({k,ms,t:3,tick:0})}
   if(fx){fx.shk=.15;fx.shkA=.08}try{AU.tone(AU.ctx.currentTime,.35,'triangle',440,880,.08)}catch(e){}return 1};
@@ -654,11 +654,11 @@ var HK=(()=>{const so=document.getElementById('soul'),sf=so&&so.querySelector('i
   if(st.has('espinhos'))setTimeout(()=>st.area(P.x,P.y+.8,1.8,0),0);return false};
  const shM=orb(0xd0a060,4.2);shM.material.opacity=.25;shM.visible=false;
  st.powers=(dt,inp,H)=>{// power key
-  const pw=!!inp.V;if(pw&&!pwPrev&&!P.dead)st.cast(inp.up?'u':inp.down?'d':'s',H);pwPrev=pw;
+  const pw=!!inp.V;if(pw&&!pwPrev&&!P.dead&&!P.swim)st.cast(inp.up?'u':inp.down?'d':'s',H);pwPrev=pw;
   // focus key: tap = Casca
   if(inp.H){hT+=dt}else{if(hPrev&&hT<.2&&st.has('casca')&&soul>=33&&!(P.shell>0)){soul-=33;P.shell=8;st.log.push('cast:casca');st.casts=(st.casts||0)+1}hT=0}hPrev=!!inp.H;
   if(P.shell>0){P.shell-=dt;shM.visible=true;shM.position.set(P.x,P.y+.9,.2);shM.material.opacity=.18+.08*Math.sin(P.shell*8)}else shM.visible=false;
-  if(P.dive){P.vy=Math.min(P.vy,-20);if(P.on){P.dive=0;st.area(P.x,P.y+.4,3.2,1);const fx=__GP.FX;fx.shk=.4;fx.shkA=.25;fx.hs=.08;__GP.burst(P.x,P.y+.2,50,2,0,new THREE.Color(0xfff0c0))}}
+  if(P.swim)P.slam=0;if(P.slam){P.vy=Math.min(P.vy,-20);if(P.on){P.slam=0;st.area(P.x,P.y+.4,3.2,1);const fx=__GP.FX;fx.shk=.4;fx.shkA=.25;fx.hs=.08;__GP.burst(P.x,P.y+.2,50,2,0,new THREE.Color(0xfff0c0))}}
   for(let i=FXs.length-1;i>=0;i--){const f=FXs[i];f.t-=dt;
    if(f.k=='lanca'){f.x+=f.vx*dt;f.m.position.set(f.x,f.y,.3);f.tick-=dt;if(f.tick<=0){if(st.area(f.x,f.y,.8,0))f.tick=.2}}
    else if(f.k=='raizes'){if(!f.done&&f.t<=0){f.done=1;st.area(f.x,f.y,1.1,0);__GP.burst(f.x,f.y-.2,26,1.4,0,new THREE.Color(0x8a6a40));__GP.frags&&__GP.frags(f.x,f.y,6,0)}if(f.t<-.3){FXs.splice(i,1);continue}}
