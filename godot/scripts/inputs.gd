@@ -10,6 +10,8 @@ const MAP := {
 	"run":   {"keys": [KEY_CTRL],         "joy": [JOY_BUTTON_B]},
 	"grab":  {"keys": [KEY_E],            "joy": [JOY_BUTTON_Y]},
 	"attack":{"keys": [KEY_X, KEY_J],     "joy": [JOY_BUTTON_X]},
+	"focus": {"keys": [KEY_F, KEY_H],     "joy": [JOY_BUTTON_LEFT_SHOULDER]},
+	"tree":  {"keys": [KEY_TAB, KEY_N],   "joy": [JOY_BUTTON_BACK]},
 	"pause": {"keys": [KEY_ESCAPE],       "joy": [JOY_BUTTON_START]},
 }
 func _ready() -> void:
